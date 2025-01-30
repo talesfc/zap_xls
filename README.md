@@ -41,6 +41,10 @@ Each text line in the file may represent one of two types of content: a chat eve
 
 # How to use
 1- Put one or multiple input text files in ./files_txt_in folder with "txt" extension
-2- Run script "ImportChat_from_File.py" located in zap_xls root folder. No parameters are needed.
-3- Output xlsx files files will be created with xlsx extension and same name as input files, in folder: ./files_xlsx_out 
+
+2- Run script "ImportChat_from_File.py" located in zap_xls root folder. No parameters are needed
+
+3- Output xlsx files files will be created with xlsx extension and same name as input files, 
+in folder: ./files_xlsx_out 
+
 4- After processing, input text files will be moved to folder: ./files_txt_out

@@ -1,10 +1,9 @@
 #
 """ 
-- para cada arquivo na pasta Entrada
-- extrai os parametros do chat do nome do arquivo 
-- registra o arquivo no chatCatalog 
-- insere registros do chat em chatData
-- atualiza registro do chat no chatCatalog com identificação da instancia zeebe
+- for each .txt file in INFolderPath 
+  - take chat name from input file name
+  - creates in XLSFolderPath folder a .xlsx file with same name as input file 
+  - moves input text files to OUTFolderPath 
 """
 #
 import os
@@ -15,15 +14,8 @@ import shutil
 
 from pathlib import Path
 
-
-# identifica os parametros de execução definidos na chamada do script
-# Define projeto se não for passado na chamada do script ### 
+# gets script name and paths
 Script= sys.argv[0]
-narg= len(sys.argv)
-if narg < 2:
-    sys.argv = [Script, "MVP-1", '0']
-
-# monta paths conforme local deste script
 ScriptFolderPath= Path(Script).parent 
 ParentFolderPath= Path(ScriptFolderPath).parent 
 
@@ -37,7 +29,6 @@ sys.path.append(str(ScriptFolderPath))
 sys.path.append(str(UtilsFolderPath))
 print("\nsys.path=",str(sys.path))
 
-import Base_Utils as UTILS_BASE
 import Chat_Utils as UTILS_CHAT
 import Chat_Xlsx  as CHAT_XLSX
 
@@ -64,21 +55,15 @@ while(nfiles > 0 and i < nfiles):
     row0= freader[0]
     length= len(row0)
     if length < 1:
-        print(f"\nArquivo vazio")
+        print(f"\nEmpty file!")
         continue
     #
     # create workbook based on xlsx template
     templatefile= 'template.xlsx'
     wbook= CHAT_XLSX.build_WBook(templatefile)
-    # open events datasheet
     eventSheet= wbook["Events"]
-    print(f"\n eventSheet= {eventSheet.title}")
-    # open posts datasheet
     postSheet= wbook["Posts"]
-    print(f"\n postSheet= {postSheet.title}")
-    # open notes datasheet
     noteSheet= wbook["Notes"]
-    print(f"\n noteSheet= {noteSheet.title}")
     idnote= 1
     noteSheet= CHAT_XLSX.insert_notesheet(noteSheet, idnote, "workbook created from template", f"{templatefile}")
     idnote += 1
@@ -86,7 +71,6 @@ while(nfiles > 0 and i < nfiles):
     #
     # Identifica Plano com base no nome do arquivo
     Grupo= UTILS_CHAT.getGrupo_from_file(listFiles[i])
-    print(f"\nTratando registros do grupo: {Grupo}")
     idnote += 1
     noteSheet= CHAT_XLSX.insert_notesheet(noteSheet, idnote, "chat file group identified", f"{Grupo}")
     #
@@ -107,29 +91,29 @@ while(nfiles > 0 and i < nfiles):
         id += 1 
         datahora= UTILS_CHAT.getDataHora(row, date_pattern)
         if datahora is None:
-            # Se nao tem data, não e´ EVENTO: é linha de continuação do POST
+            # no date in the text line: it's not an EVENT nor a new POST, its part of current post message
             npost += 1
             postSheet= CHAT_XLSX.insert_postsheet(postSheet, npost, row, "")
         else:
-            # Se tem Marca de Data (" - "), pode ser EVENTO ou POST
+            # if date mark (" - ") is present, can be either EVENT or POST
             posMarcaData= row.find(UTILS_CHAT.marcaData)
-            # Se tem Marca de Header (" : "), que separa FONE/NOME do texto, então é POST
+            # if header mark (" : ") is present, it marks end of phone or name part and start of post message
             posMarcaHeader= row.find(UTILS_CHAT.marcaHeader)
             if posMarcaData > 0 and posMarcaHeader > 0: 
                 npost += 1
                 postSheet= CHAT_XLSX.insert_postsheet(postSheet, npost, row, datahora)
                 continue
-            # Se tem tem Marca de Data, sem Marca de Header, é  EVENTO
+            # if date mark (" - ") is present without header mark, it is an EVENT line
             else:
                 nevent += 1
-            # Se Evento, pode ser de vários tipos
-            # Tipo 1 a 3: FONE ou NOME seguido de texto e/ou emoticons, separados por ":" 
+            # EVENT types
+            # Type 1 to 3: PHONE or NAME followed by text and/or emoticons separated by ":" 
             if posMarcaHeader > 0:
                 agente= row[posMarcaData+1:posMarcaHeader]
                 evento= row[posMarcaHeader+1:]
                 eventSheet= CHAT_XLSX.insert_eventsheet(eventSheet, nevent, agente, evento, datahora)
                 continue
-            # Tipo 5: registro com marca de evento: 200E, 201E, 202E, 203E, 204E, 205E 
+            # Type 5: line with event mark (200E, 201E, 202E, 203E, 204E, 205E) 
             posMarca200E_1= row.find(UTILS_CHAT.marca200E_1)
             if posMarca200E_1 > 0:
                 row2= row[posMarca200E_1+1:]
@@ -140,7 +124,7 @@ while(nfiles > 0 and i < nfiles):
                 row2= row.replace(UTILS_CHAT.marca200E_2, "")
                 eventSheet= CHAT_XLSX.insert_eventsheet(eventSheet, nevent, "", row2, datahora)
                 continue
-            # Tipo 6: registro sem marca de evento => identificado pelo texto: entrou, saiu, ...
+            # Type 6: line with no event mark => identified by text: entrou, saiu, ...
             for tipo in UTILS_CHAT.event_list:
                 pos= row.find(tipo)
                 if pos > 0:
@@ -148,12 +132,12 @@ while(nfiles > 0 and i < nfiles):
                     evento= row[pos:]
                     eventSheet= CHAT_XLSX.insert_eventsheet(eventSheet, nevent, agente, evento, datahora)
                 continue
-            # Tipo 0: Evento de Canal, não identifica agente
+            # Type 0: 'Canal' Event, no agent identified
             if posMarcaData > 0:
                 evento= row[posMarcaData+3:]
                 eventSheet= CHAT_XLSX.insert_eventsheet(eventSheet, nevent, "CANAL", evento, datahora)
                 continue
-            # Tipo VCF: Registro de postagem de cartão VCF
+            # Type VCF: VCF card posted 
             posmarcaVCF= row.find(UTILS_CHAT.marcaVCF)
             if posmarcaVCF >= 0:
                 nevent += 1        
